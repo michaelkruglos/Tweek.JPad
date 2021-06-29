@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <WarnOn>3390;$(WarnOn)</WarnOn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="CodeGeneration.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Tweek.JPad.RuntimeSupport\Tweek.JPad.RuntimeSupport.csproj" />
+    <ProjectReference Include="..\Tweek.JPad\Tweek.JPad.fsproj" />
+  </ItemGroup>
+
+</Project>

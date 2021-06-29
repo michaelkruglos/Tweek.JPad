@@ -1,6 +1,6 @@
 ﻿namespace Tweek.JPad
 open System;
-open FSharpUtils.Newtonsoft;
+open FSharpUtils.Newtonsoft
 
 type ComparerDelegate = delegate of string -> IComparable
 type Context = string-> Option<JsonValue>

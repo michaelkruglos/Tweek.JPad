@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0</TargetFrameworks>
+    <TargetFrameworks>net5.0</TargetFrameworks>
     <Version Condition="$(package_version)!=''">$(package_version)</Version>
     <Version Condition="$(package_version)==''">0.7.0-development</Version>
     <Company>Soluto</Company>
@@ -14,7 +14,6 @@
     <PackageProjectUrl>https://github.com/Soluto/Tweek.JPad</PackageProjectUrl>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Common.fs" />
     <Compile Include="Ast.fs" />
     <Compile Include="Parsing/Matcher.fs" />
     <Compile Include="Parsing/ValueDistribution.fs" />
@@ -29,5 +28,8 @@
   <ItemGroup>
     <PackageReference Include="FSharp.Core" Version="4.2.3" />
     <PackageReference Include="FSharpUtils.Newtonsoft.JsonValue" Version="0.2.6" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Tweek.JPad.RuntimeSupport\Tweek.JPad.RuntimeSupport.csproj" />
   </ItemGroup>
 </Project>
