@@ -275,4 +275,4 @@ __pycache__/
 # !tools/packages.config
 
 # Mac
-# .DS_Store
+.DS_Store
