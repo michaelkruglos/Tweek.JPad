@@ -8,6 +8,11 @@ open Tweek.JPad.RuntimeSupport
 
 module CodeGeneration =
     
+    let comparisonTypeToString (comparison:ComparisonType) =
+        match comparison with
+        |Auto -> null
+        |Custom customType -> customType
+
     let rec compileMatcher (emitter: Emitter) (shortcut: Label) (prefix: string) (matcher: MatcherExpression) =
         match matcher with
         |Empty -> ()
@@ -35,11 +40,13 @@ module CodeGeneration =
                                           |LessEqual -> EvaluatorDelegateClosure.ComparisonOp.LessEqual
                                           |NotEqual  -> EvaluatorDelegateClosure.ComparisonOp.NotEqual
                                           
-                let comparisonTypeString = match comparisonType with
-                                           |Auto -> null
-                                           |Custom custom -> custom
+                let comparisonTypeString = comparisonTypeToString comparisonType
                 emitter.EmitComparison(prefix, comparisonOperation, value, comparisonTypeString)
-                emitter.EmitJumpIfFalse(shortcut);
+                emitter.EmitJumpIfFalse(shortcut)
+            |In (values,newComparisonType) -> emitter.EmitInArray(prefix, values, (comparisonTypeToString newComparisonType))
+            |TimeOp (op, value) -> ()
+            |StringOp (op, value) -> ()
+            |ContainsOp (value, newComparisonType) -> ()
                 
 
     let compileRule (emitter: Emitter) (defaultValue: Label) (matcher: MatcherExpression,value:RuleValue) =

@@ -114,34 +114,6 @@ type ``Code Generation tests`` () =
         validateValue rules (createContext []) "unknown"
 
 
-    [<Fact>]
-    member test.``Use full rules and special operations``() =
-        let rules = parser <| """
-        {
-            "partitions": [ ],
-            "defaultValue": "unknown",
-            "rules": [
-                {
-                    "Matcher": {
-                        "fruit": "apple",
-                    },
-                    "Value": "green",
-                    "Type": "SingleVariant"
-                },
-                {
-                    "Matcher": {
-                        "fruit": "banana"
-                    },
-                    "Type": "SingleVariant",
-                    "Value": "yellow"
-                }
-            ]
-        }"""
-        validateValue rules (createContext [("fruit", "apple");("cultivar", "smith");]) "green"
-        validateValue rules (createContext [("fruit", "banana")]) "yellow"
-        validateValue rules (createContext [("fruit", "grapes")]) "unknown"
-        validateValue rules (createContext []) "unknown"
-
 
     [<Fact>]
     member test.``Use full rules and default value``() =

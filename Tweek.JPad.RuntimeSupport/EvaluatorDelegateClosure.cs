@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection.Metadata;
 using FSharpUtils.Newtonsoft;
 using Microsoft.FSharp.Core;
 
@@ -54,22 +56,45 @@ namespace Tweek.JPad.RuntimeSupport
 
         public bool Compare(JsonValue left, FSharpOption<JsonValue> right, ComparisonOp op, string comparisonType)
         {
-            Func<string,string, int> stringComparer = comparisonType == null
-                ? CompareAuto
-                : (a, b) => CompareCustom(a, b, comparisonType);
-            if (left.IsString)
+            Func<string, string, int> stringComparer = MakeComparer(comparisonType);
+            var actualRight = right?.Value ?? JsonValue.Null;
+            
+            if (left.IsNull && actualRight.IsNull)
             {
-                if (right?.Value?.IsString ?? false)
-                {
-                    return CompareToOp(stringComparer(left.AsString(), right.Value.AsString()), op);
-                }
-                return false;
+                return op == ComparisonOp.Equal;
             }
-            else
+            
+            if (left.IsNull || actualRight.IsNull)
             {
                 return false;
             }
+            
+            if (left.IsString && actualRight.IsString)
+            {
+                    return CompareToOp(stringComparer(left.AsString(), actualRight.AsString()), op);
+            }
+
+            if (left.IsNumber)
+            {
+                return CompareToOp(left.AsDecimal().CompareTo(actualRight.AsDecimal()), op);
+            }
+
+            if (left.IsFloat)
+            {
+                return CompareToOp(left.AsFloat().CompareTo(actualRight.AsFloat()), op);
+            }
+
+            if (left.IsBoolean)
+            {
+                return CompareToOp(left.AsBoolean().CompareTo(actualRight.AsBoolean()), op);
+            }
+
+            throw new Exception("No matching types");
         }
+
+        private Func<string, string, int> MakeComparer(string comparisonType) => comparisonType == null
+            ? CompareAuto
+            : (a, b) => CompareCustom(a, b, comparisonType);
 
         public int CompareAuto(string left, string right) =>
             string.Compare(left, right, StringComparison.OrdinalIgnoreCase);
@@ -78,5 +103,8 @@ namespace Tweek.JPad.RuntimeSupport
         {
             return comparers[comparisonType].Invoke(left).CompareTo(right);
         }
+
+        public bool InArray(JsonValue values, JsonValue what, string comparisonType) =>
+            values.AsArray().Any(value => Compare(value, FSharpOption<JsonValue>.Some(what), ComparisonOp.Equal, comparisonType));
     }
 }

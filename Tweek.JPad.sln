@@ -15,6 +15,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Tweek.JPad.Common", "Tweek.
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Tweek.JPad.CodeGeneration", "Tweek.JPad.CodeGeneration\Tweek.JPad.CodeGeneration.fsproj", "{8D58C941-94A1-454E-9B3F-434E21C983CD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tweek.JPad.Benchmarks", "Tweek.JPad.Benchmarks\Tweek.JPad.Benchmarks.csproj", "{C121CDB3-C901-436A-A3AF-7BCB88C87093}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -100,5 +102,17 @@ Global
 		{8D58C941-94A1-454E-9B3F-434E21C983CD}.Release|x64.Build.0 = Release|Any CPU
 		{8D58C941-94A1-454E-9B3F-434E21C983CD}.Release|x86.ActiveCfg = Release|Any CPU
 		{8D58C941-94A1-454E-9B3F-434E21C983CD}.Release|x86.Build.0 = Release|Any CPU
+		{C121CDB3-C901-436A-A3AF-7BCB88C87093}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C121CDB3-C901-436A-A3AF-7BCB88C87093}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C121CDB3-C901-436A-A3AF-7BCB88C87093}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C121CDB3-C901-436A-A3AF-7BCB88C87093}.Debug|x64.Build.0 = Debug|Any CPU
+		{C121CDB3-C901-436A-A3AF-7BCB88C87093}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C121CDB3-C901-436A-A3AF-7BCB88C87093}.Debug|x86.Build.0 = Debug|Any CPU
+		{C121CDB3-C901-436A-A3AF-7BCB88C87093}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C121CDB3-C901-436A-A3AF-7BCB88C87093}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C121CDB3-C901-436A-A3AF-7BCB88C87093}.Release|x64.ActiveCfg = Release|Any CPU
+		{C121CDB3-C901-436A-A3AF-7BCB88C87093}.Release|x64.Build.0 = Release|Any CPU
+		{C121CDB3-C901-436A-A3AF-7BCB88C87093}.Release|x86.ActiveCfg = Release|Any CPU
+		{C121CDB3-C901-436A-A3AF-7BCB88C87093}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

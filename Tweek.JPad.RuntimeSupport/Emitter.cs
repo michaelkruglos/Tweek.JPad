@@ -12,6 +12,7 @@ namespace Tweek.JPad.RuntimeSupport
     // this is not a good place for it
     public class Emitter
     {
+        private static AssemblyBuilder _assembly;
         private ILGenerator _il;
         private TypeBuilder _closureType;
         private MethodBuilder _invoke;
@@ -19,20 +20,18 @@ namespace Tweek.JPad.RuntimeSupport
 
         private readonly FieldInfo _cachedValuesField =
             typeof(EvaluatorDelegateClosure).GetField(EvaluatorDelegateClosure.ValuesFieldName);
-
         private readonly FieldInfo _jumpTableField =
             typeof(EvaluatorDelegateClosure).GetField(EvaluatorDelegateClosure.JumpTableFieldName);
-
         private readonly MethodInfo _jsonValueNoneMethod =
-            typeof(FSharpOption<JsonValue>).GetProperty("None")?.GetMethod;
-
+            typeof(FSharpOption<JsonValue>).GetProperty(nameof(FSharpOption<JsonValue>.None))?.GetMethod;
         private readonly MethodInfo _jsonValueSomeMethod =
             typeof(FSharpOption<JsonValue>).GetMethod(nameof(FSharpOption<JsonValue>.Some));
-
         private readonly MethodInfo _compareMethod =
             typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.Compare));
+        private readonly  MethodInfo _inArrayMethod =
+            typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.InArray));
 
-        private static AssemblyBuilder _assembly;
+        private readonly MethodInfo _contextDelegateInvokeMethod = typeof(ContextDelegate).GetMethod(nameof(ContextDelegate.Invoke));
 
         private Emitter()
         {
@@ -153,11 +152,27 @@ namespace Tweek.JPad.RuntimeSupport
             _il.Emit(OpCodes.Call, _compareMethod);
         }
 
+        public void EmitInArray(string property, IEnumerable<JsonValue> left, string comparisonType)
+        {
+            _il.Emit(OpCodes.Ldarg_0);
+            EmitJsonValue(JsonValue.NewArray(left.ToArray()), useDup: true);
+            EmitFetchContextProperty(property);
+            if (comparisonType == null)
+            {
+                _il.Emit(OpCodes.Ldnull);
+            }
+            else
+            {
+                _il.Emit(OpCodes.Ldstr, comparisonType);
+            }
+            _il.Emit(OpCodes.Call, _inArrayMethod);
+        }
+        
         private void EmitFetchContextProperty(string property)
         {
             _il.Emit(OpCodes.Ldarg_1);
             _il.Emit(OpCodes.Ldstr, property);
-            _il.Emit(OpCodes.Callvirt, typeof(ContextDelegate).GetMethod(nameof(ContextDelegate.Invoke)));
+            _il.Emit(OpCodes.Callvirt, _contextDelegateInvokeMethod);
         }
 
         public void EmitJumpIfFalse(Label target)
