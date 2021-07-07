@@ -152,11 +152,11 @@ namespace Tweek.JPad.RuntimeSupport
             _il.Emit(OpCodes.Call, _compareMethod);
         }
 
-        public void EmitInArray(string property, IEnumerable<JsonValue> left, string comparisonType)
+        public void EmitInArray(string whatProperty, IEnumerable<JsonValue> values, string comparisonType)
         {
             _il.Emit(OpCodes.Ldarg_0);
-            EmitJsonValue(JsonValue.NewArray(left.ToArray()), useDup: true);
-            EmitFetchContextProperty(property);
+            EmitJsonValue(JsonValue.NewArray(values.ToArray()), useDup: true);
+            EmitFetchContextProperty(whatProperty);
             if (comparisonType == null)
             {
                 _il.Emit(OpCodes.Ldnull);
@@ -178,6 +178,11 @@ namespace Tweek.JPad.RuntimeSupport
         public void EmitJumpIfFalse(Label target)
         {
             _il.Emit(OpCodes.Brfalse, target);
+        }
+
+        public void EmitJump(Label target)
+        {
+            _il.Emit(OpCodes.Br, target);
         }
     }
 }

@@ -56,55 +56,54 @@ namespace Tweek.JPad.RuntimeSupport
 
         public bool Compare(JsonValue left, FSharpOption<JsonValue> right, ComparisonOp op, string comparisonType)
         {
-            Func<string, string, int> stringComparer = MakeComparer(comparisonType);
+            Func<string, string, int> stringComparer = comparisonType == null
+                ? (a, b) => string.Compare(a, b, StringComparison.OrdinalIgnoreCase)
+                : (a, b) => comparers[comparisonType].Invoke(a).CompareTo(comparers[comparisonType].Invoke(b));
+
             var actualRight = right?.Value ?? JsonValue.Null;
-            
+
             if (left.IsNull && actualRight.IsNull)
             {
                 return op == ComparisonOp.Equal;
             }
-            
+
             if (left.IsNull || actualRight.IsNull)
             {
                 return false;
             }
-            
+
+            // The order is right to left, see Matcher.fs in JPad
             if (left.IsString && actualRight.IsString)
             {
-                    return CompareToOp(stringComparer(left.AsString(), actualRight.AsString()), op);
+                return CompareToOp(stringComparer(actualRight.AsString(), left.AsString()), op);
             }
 
             if (left.IsNumber)
             {
-                return CompareToOp(left.AsDecimal().CompareTo(actualRight.AsDecimal()), op);
+                return CompareToOp(actualRight.AsDecimal().CompareTo(left.AsDecimal()), op);
             }
 
             if (left.IsFloat)
             {
-                return CompareToOp(left.AsFloat().CompareTo(actualRight.AsFloat()), op);
+                return CompareToOp(actualRight.AsFloat().CompareTo(left.AsFloat()), op);
             }
 
             if (left.IsBoolean)
             {
-                return CompareToOp(left.AsBoolean().CompareTo(actualRight.AsBoolean()), op);
+                return CompareToOp(actualRight.AsBoolean().CompareTo(left.AsBoolean()), op);
             }
 
             throw new Exception("No matching types");
         }
 
         private Func<string, string, int> MakeComparer(string comparisonType) => comparisonType == null
-            ? CompareAuto
-            : (a, b) => CompareCustom(a, b, comparisonType);
+            ? (a, b) =>
+                string.Compare(a, b, StringComparison.OrdinalIgnoreCase)
+            : (a, b) =>
+                comparers[comparisonType].Invoke(a).CompareTo(comparers[comparisonType].Invoke(b));
 
-        public int CompareAuto(string left, string right) =>
-            string.Compare(left, right, StringComparison.OrdinalIgnoreCase);
-
-        public int CompareCustom(string left, string right, string comparisonType)
-        {
-            return comparers[comparisonType].Invoke(left).CompareTo(right);
-        }
-
-        public bool InArray(JsonValue values, JsonValue what, string comparisonType) =>
-            values.AsArray().Any(value => Compare(value, FSharpOption<JsonValue>.Some(what), ComparisonOp.Equal, comparisonType));
+        public bool InArray(JsonValue values, FSharpOption<JsonValue> what, string comparisonType) =>
+            values.AsArray().Any(value =>
+                Compare(value, what, ComparisonOp.Equal, comparisonType));
     }
 }

@@ -8,12 +8,12 @@ open Tweek.JPad.RuntimeSupport
 
 module CodeGeneration =
     
-    let comparisonTypeToString (comparison:ComparisonType) =
+    let private comparisonTypeToString (comparison:ComparisonType) =
         match comparison with
         |Auto -> null
         |Custom customType -> customType
 
-    let rec compileMatcher (emitter: Emitter) (shortcut: Label) (prefix: string) (matcher: MatcherExpression) =
+    let rec private compileMatcher (emitter: Emitter) (shortcut: Label) (prefix: string) (matcher: MatcherExpression) =
         match matcher with
         |Empty -> ()
         |Property (propertyName, matcherExpression) ->
@@ -21,6 +21,11 @@ module CodeGeneration =
             compileMatcher emitter shortcut newPrefix matcherExpression
         |Op operation ->
             match operation with
+            |Op.Not matcher ->
+                let falseCondition = emitter.ReserveLabel()
+                compileMatcher emitter falseCondition prefix matcher
+                emitter.EmitJump(shortcut)
+                emitter.MarkLabel(falseCondition)
             |ConjuctionOp (conjunction, matcherLeft, matcherRight) ->
                 match conjunction with
                 |And ->
@@ -43,15 +48,15 @@ module CodeGeneration =
                 let comparisonTypeString = comparisonTypeToString comparisonType
                 emitter.EmitComparison(prefix, comparisonOperation, value, comparisonTypeString)
                 emitter.EmitJumpIfFalse(shortcut)
-            |In (values,newComparisonType) -> emitter.EmitInArray(prefix, values, (comparisonTypeToString newComparisonType))
+            |In (values,comparisonType) ->
+                emitter.EmitInArray(prefix, values, (comparisonTypeToString comparisonType))
+                emitter.EmitJumpIfFalse(shortcut)
             |TimeOp (op, value) -> ()
             |StringOp (op, value) -> ()
             |ContainsOp (value, newComparisonType) -> ()
-                
 
-    let compileRule (emitter: Emitter) (defaultValue: Label) (matcher: MatcherExpression,value:RuleValue) =
+    let private compileRule (emitter: Emitter) (defaultValue: Label) (matcher: MatcherExpression,value:RuleValue) =
         compileMatcher emitter defaultValue null matcher
-        //emitter.EmitJumpIfFalse(defaultValue);
         match value with
         |SingleVariant jsonValue ->
             emitter.EmitReturnJsonValueSome jsonValue
@@ -61,7 +66,7 @@ module CodeGeneration =
             |Weighted weightedValues -> ()
             |Bernouli fp -> ()
         
-    let rec compileRulesContainer (emitter: Emitter) container shortcut =
+    let rec private compileRulesContainer (emitter: Emitter) container shortcut =
         match container with
         |RulesByPartition (partitionProperty, rules, defaultRules) ->
             rules |> Map.iter (fun propertyValue rule ->
@@ -79,7 +84,7 @@ module CodeGeneration =
                 emitter.MarkLabel(nextRule)
                 )
         
-    let compile (emitter: Emitter) (jpad: JPad) =
+    let private compile (emitter: Emitter) (jpad: JPad) =
         let defaultValue = emitter.ReserveLabel()
         compileRulesContainer emitter jpad.Rules defaultValue
         emitter.MarkLabel(defaultValue)
