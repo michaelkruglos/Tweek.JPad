@@ -56,10 +56,14 @@ module CodeGeneration =
                 emitter.EmitInArray(prefix, values, (comparisonTypeToString comparisonType))
                 emitter.EmitJumpIfFalse(shortcut)
             |TimeOp (op, value) -> raise(NotImplementedException())
-            |StringOp (op, value) -> raise(NotImplementedException())
+            |StringOp (op, value) ->
+                match op with
+                |StartsWith -> emitter.EmitStartsWith(prefix, value)
+                |EndsWith -> emitter.EmitEndsWith(prefix, value)
+                emitter.EmitJumpIfFalse(shortcut)
             |ContainsOp (value, comparisonType) ->
-                    emitter.EmitContains(prefix, value, (comparisonTypeToString comparisonType))
-                    emitter.EmitJumpIfFalse(shortcut)
+                emitter.EmitContains(prefix, value, (comparisonTypeToString comparisonType))
+                emitter.EmitJumpIfFalse(shortcut)
 
     let private compileRule (emitter: Emitter) (defaultValue: Label) (matcher: MatcherExpression,value:RuleValue) =
         compileMatcher emitter defaultValue null matcher

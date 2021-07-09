@@ -33,6 +33,8 @@ namespace Tweek.JPad.RuntimeSupport
 
         private readonly MethodInfo _contextDelegateInvokeMethod = typeof(ContextDelegate).GetMethod(nameof(ContextDelegate.Invoke));
         private readonly MethodInfo _containsMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.Contains));
+        private readonly MethodInfo _startsWith = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.StringStartsWith));
+        private readonly MethodInfo _endsWith = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.StringEndsWith));
 
         private Emitter()
         {
@@ -202,6 +204,20 @@ namespace Tweek.JPad.RuntimeSupport
                 _il.Emit(OpCodes.Ldstr, comparisonType);
             }
             _il.Emit(OpCodes.Call, _containsMethod);
+        }
+
+        public void EmitStartsWith(string contextProperty, string prefix)
+        {
+            EmitFetchContextProperty(contextProperty);
+            _il.Emit(OpCodes.Ldstr, prefix);
+            _il.Emit(OpCodes.Call, _startsWith);
+        }
+        
+        public void EmitEndsWith(string contextProperty, string prefix)
+        {
+            EmitFetchContextProperty(contextProperty);
+            _il.Emit(OpCodes.Ldstr, prefix);
+            _il.Emit(OpCodes.Call, _endsWith);
         }
         
     }

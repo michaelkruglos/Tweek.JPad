@@ -9,6 +9,7 @@ open FSharpUtils.Newtonsoft;
 open Tweek.JPad
 open System
 open Tests.Common
+open Xunit
 
 type ContainsOperatorData() as this  =
     inherit TheoryData<string, IEnumerable<KeyValuePair<string,JsonValue>>, bool>()
@@ -419,3 +420,29 @@ type ``Code Generation tests`` () =
         let contextMapAdapted = contextMap |> Seq.map(fun kv -> (kv.Key, kv.Value))
         validateValue rules (createContextForJsonValue contextMapAdapted) (expected.ToString().ToLower())
 
+
+    [<Theory>]
+    [<InlineData("""{"Country": {"$startsWith": "united" }}""", "United Stated", true)>]
+    [<InlineData("""{"Country": {"$startsWith": "united" }}""", "United Kingdom", true)>]
+    [<InlineData("""{"Country": {"$startsWith": "united" }}""", "Russia", false)>]
+    [<InlineData("""{"Country": {"$endsWith": "land" }}""", "Finland", true)>]
+    [<InlineData("""{"Country": {"$endsWith": "land" }}""", "EnglaND", true)>]
+    [<InlineData("""{"Country": {"$endsWith": "land" }}""", "Norway", false)>]
+    member test.``String operations with string value``(expression, value, expected) =
+        let rules = parser <| (expression |> sprintf """
+        {
+            "partitions": [],
+            "defaultValue": "false",
+            "rules": [
+                {
+                    "Matcher": %s,
+                    "Type": "SingleVariant",
+                    "Value": "true"
+                }
+            ]
+        }""")
+
+        validateValue rules (createContext [("Country", value);]) (expected.ToString().ToLower())
+
+
+    //

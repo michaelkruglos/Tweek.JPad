@@ -131,6 +131,16 @@ namespace Tweek.JPad.RuntimeSupport
             var leftArray = left.AsArray();
             return leftArray.Length == 1 && Compare(leftArray.Single(), right, ComparisonOp.Equal, comparisonType);
         }
+
+        public static bool StringStartsWith(FSharpOption<JsonValue> contextValue, string prefix)
+        {
+            return contextValue?.Value?.AsString().StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ?? false;
+        }
+        
+        public static bool StringEndsWith(FSharpOption<JsonValue> contextValue, string prefix)
+        {
+            return contextValue?.Value?.AsString().EndsWith(prefix,StringComparison.OrdinalIgnoreCase) ?? false;
+        }
     }
 
     internal class JsonValueEqualityComparer: IEqualityComparer<JsonValue>
