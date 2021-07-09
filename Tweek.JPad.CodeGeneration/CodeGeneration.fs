@@ -1,5 +1,6 @@
 namespace Tweek.JPad.CodeGeneration
 
+open System
 open System.Reflection.Emit
 open FSharpUtils.Newtonsoft
 open Tweek.JPad
@@ -33,9 +34,12 @@ module CodeGeneration =
                     compileMatcher emitter shortcut prefix matcherRight
                 |Or ->
                     let tryRightMatcher = emitter.ReserveLabel()
+                    let leftIsEnough = emitter.ReserveLabel()
                     compileMatcher emitter tryRightMatcher prefix matcherLeft
+                    emitter.EmitJump(leftIsEnough)
                     emitter.MarkLabel(tryRightMatcher)
                     compileMatcher emitter shortcut prefix matcherRight
+                    emitter.MarkLabel(leftIsEnough)
             |CompareOp (comparison,value,comparisonType) ->
                 let comparisonOperation = match comparison with
                                           |Equal -> EvaluatorDelegateClosure.ComparisonOp.Equal
@@ -51,9 +55,11 @@ module CodeGeneration =
             |In (values,comparisonType) ->
                 emitter.EmitInArray(prefix, values, (comparisonTypeToString comparisonType))
                 emitter.EmitJumpIfFalse(shortcut)
-            |TimeOp (op, value) -> ()
-            |StringOp (op, value) -> ()
-            |ContainsOp (value, newComparisonType) -> ()
+            |TimeOp (op, value) -> raise(NotImplementedException())
+            |StringOp (op, value) -> raise(NotImplementedException())
+            |ContainsOp (value, comparisonType) ->
+                    emitter.EmitContains(prefix, value, (comparisonTypeToString comparisonType))
+                    emitter.EmitJumpIfFalse(shortcut)
 
     let private compileRule (emitter: Emitter) (defaultValue: Label) (matcher: MatcherExpression,value:RuleValue) =
         compileMatcher emitter defaultValue null matcher
@@ -62,9 +68,9 @@ module CodeGeneration =
             emitter.EmitReturnJsonValueSome jsonValue
         |MultiVariant valueDistribution ->
             match valueDistribution.DistributionType with
-            |Uniform uniformValues -> ()
-            |Weighted weightedValues -> ()
-            |Bernouli fp -> ()
+            |Uniform uniformValues -> raise(NotImplementedException())
+            |Weighted weightedValues -> raise(NotImplementedException())
+            |Bernouli fp -> raise(NotImplementedException())
         
     let rec private compileRulesContainer (emitter: Emitter) container shortcut =
         match container with

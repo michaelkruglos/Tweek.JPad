@@ -32,6 +32,7 @@ namespace Tweek.JPad.RuntimeSupport
             typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.InArray));
 
         private readonly MethodInfo _contextDelegateInvokeMethod = typeof(ContextDelegate).GetMethod(nameof(ContextDelegate.Invoke));
+        private readonly MethodInfo _containsMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.Contains));
 
         private Emitter()
         {
@@ -48,7 +49,7 @@ namespace Tweek.JPad.RuntimeSupport
             emitter._invoke = emitter._closureType.DefineMethod("Invoke", MethodAttributes.Public| MethodAttributes.Virtual, typeof(FSharpOption<JsonValue>),
                 new[] {typeof(ContextDelegate)});
             emitter._il = emitter._invoke.GetILGenerator();
-            emitter._invoke.DefineParameter(0, ParameterAttributes.In, "ContextDelegate");
+            emitter._invoke.DefineParameter(1, ParameterAttributes.In, "context");
             return emitter;
         }
 
@@ -68,7 +69,9 @@ namespace Tweek.JPad.RuntimeSupport
             dcIL.Emit(OpCodes.Ldarg_2);
             dcIL.Emit(OpCodes.Ldarg_3);
             dcIL.Emit(OpCodes.Ldarg_S, 4);
-            dcIL.Emit(OpCodes.Call, typeof(EvaluatorDelegateClosure).GetConstructor(paramTypes) ?? throw new Exception("Cannot find constructor"));
+            dcIL.Emit(OpCodes.Call,
+                typeof(EvaluatorDelegateClosure).GetConstructor(paramTypes) ??
+                throw new Exception("Cannot find constructor"));
             dcIL.Emit(OpCodes.Ret);
             
             var theType = _closureType.CreateType();
@@ -152,22 +155,6 @@ namespace Tweek.JPad.RuntimeSupport
             _il.Emit(OpCodes.Call, _compareMethod);
         }
 
-        public void EmitInArray(string whatProperty, IEnumerable<JsonValue> values, string comparisonType)
-        {
-            _il.Emit(OpCodes.Ldarg_0);
-            EmitJsonValue(JsonValue.NewArray(values.ToArray()), useDup: true);
-            EmitFetchContextProperty(whatProperty);
-            if (comparisonType == null)
-            {
-                _il.Emit(OpCodes.Ldnull);
-            }
-            else
-            {
-                _il.Emit(OpCodes.Ldstr, comparisonType);
-            }
-            _il.Emit(OpCodes.Call, _inArrayMethod);
-        }
-        
         private void EmitFetchContextProperty(string property)
         {
             _il.Emit(OpCodes.Ldarg_1);
@@ -184,5 +171,38 @@ namespace Tweek.JPad.RuntimeSupport
         {
             _il.Emit(OpCodes.Br, target);
         }
+        
+        public void EmitInArray(string whatProperty, IEnumerable<JsonValue> values, string comparisonType)
+        {
+            _il.Emit(OpCodes.Ldarg_0);
+            EmitJsonValue(JsonValue.NewArray(values.ToArray()), useDup: true);
+            EmitFetchContextProperty(whatProperty);
+            if (comparisonType == null)
+            {
+                _il.Emit(OpCodes.Ldnull);
+            }
+            else
+            {
+                _il.Emit(OpCodes.Ldstr, comparisonType);
+            }
+            _il.Emit(OpCodes.Call, _inArrayMethod);
+        }
+
+        public void EmitContains(string contextProperty, JsonValue value, string comparisonType)
+        {
+            _il.Emit(OpCodes.Ldarg_0);
+            EmitJsonValue(value, useDup: true);
+            EmitFetchContextProperty(contextProperty);
+            if (comparisonType == null)
+            {
+                _il.Emit(OpCodes.Ldnull);
+            }
+            else
+            {
+                _il.Emit(OpCodes.Ldstr, comparisonType);
+            }
+            _il.Emit(OpCodes.Call, _containsMethod);
+        }
+        
     }
 }

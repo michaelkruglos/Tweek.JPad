@@ -1,17 +1,50 @@
 ﻿module CodeGenerationTests
 
+open System.Collections
+open System.Collections.Generic
 open FsUnit
 open Tweek.JPad.CodeGeneration
 open Xunit
-open FsCheck.Xunit;
 open FSharpUtils.Newtonsoft;
-open Microsoft.FSharp.Reflection;
-open Newtonsoft.Json
 open Tweek.JPad
-open FsCheck
 open System
 open Tests.Common
 
+type ContainsOperatorData() as this  =
+    inherit TheoryData<string, IEnumerable<KeyValuePair<string,JsonValue>>, bool>()
+    let contries1 = [|JsonValue.String("IsrAel");JsonValue.String("Italy");JsonValue.String("Australia")|]
+    let contries2 = [|JsonValue.String("IsrAel");JsonValue.String("fRance");JsonValue.String("GermaNy");JsonValue.String("iReland")|]
+    let codes1 = [|JsonValue.Number(1m);JsonValue.Number(2m);JsonValue.Number(3m)|]
+    let noCountries = [||]
+    let expression = """{"Countries": {"$contains": "AustRalia" }}"""
+    let emptyExpression = """{"Countries": {"$contains": "" }}"""
+    let listExpression= """{"Countries": {"$contains": ["israel","iTaly"] }}"""
+    let numberListExpression= """{"Codes": {"$contains": [1] }}"""
+    let singleListExpression= """{"Countries": {"$contains": ["israel"] }}"""
+    let emptyListExpression = """{"Countries": {"$contains": [] }}"""
+    
+    do
+        this.Add(expression,            [KeyValuePair<string,JsonValue>("Countries", JsonValue.Array(contries1))],     true)
+        this.Add(expression,             [KeyValuePair<string,JsonValue>("Countries", JsonValue.Array(contries2))],     false)
+        this.Add(expression,             [KeyValuePair<string,JsonValue>("Countries", JsonValue.Array(noCountries))],   false)
+        this.Add(expression,             [KeyValuePair<string,JsonValue>("Countries", JsonValue.Null)],                 false)
+        this.Add(emptyExpression,        [KeyValuePair<string,JsonValue>("Countries", JsonValue.Array(contries1))],   false)
+        this.Add(emptyExpression,        [KeyValuePair<string,JsonValue>("Countries", JsonValue.Array(noCountries))], false)
+        this.Add(emptyExpression,        [KeyValuePair<string,JsonValue>("Countries", JsonValue.Null)],               false)
+        this.Add(listExpression,         [KeyValuePair<string,JsonValue>("Countries", JsonValue.Array(contries1))],   true)
+        this.Add(listExpression,         [KeyValuePair<string,JsonValue>("Countries", JsonValue.Array(contries2))],   false)
+        this.Add(listExpression,         [KeyValuePair<string,JsonValue>("Countries", JsonValue.Array(noCountries))], false)
+        this.Add(listExpression,         [KeyValuePair<string,JsonValue>("Countries", JsonValue.String("IsrAel"))],   false)
+        this.Add(listExpression,         [KeyValuePair<string,JsonValue>("Countries", JsonValue.Null)],               false)
+        this.Add(singleListExpression,   [KeyValuePair<string,JsonValue>("Countries", JsonValue.String("IsrAel"))],   true)
+        this.Add(singleListExpression,   [KeyValuePair<string,JsonValue>("Countries", JsonValue.String("Isrel"))],    false)
+        this.Add(singleListExpression,   [KeyValuePair<string,JsonValue>("Countries", JsonValue.Null)],               false)
+        this.Add(emptyListExpression,    [KeyValuePair<string,JsonValue>("Countries", JsonValue.Array(contries1))],   true)
+        this.Add(emptyListExpression,    [KeyValuePair<string,JsonValue>("Countries", JsonValue.Array(noCountries))], true)
+        this.Add(emptyListExpression,    [KeyValuePair<string,JsonValue>("Countries", JsonValue.Null)],               false)
+        this.Add(numberListExpression,   [KeyValuePair<string,JsonValue>("Codes", JsonValue.Array(codes1))],          true)
+        this.Add(numberListExpression,   [KeyValuePair<string,JsonValue>("Codes", JsonValue.Null)],                   false)
+        
 type ``Code Generation tests`` () =
     let parser = CodeGeneration.GenerateDelegate (ParserSettings(defaultSha1Provider, dict([("version", new ComparerDelegate(fun x -> Version.Parse(x) :> IComparable))]))) "test_key"
     let createContext seq = ContextDelegate(fun name -> seq |> Seq.tryFind (fun (k,v)->k = name) |> Option.map (fun (k,v)->JsonValue.String v))
@@ -24,6 +57,8 @@ type ``Code Generation tests`` () =
     let validateValue (rules:JPadEvaluateExt) context value = validate rules context (Some(JsonValue.String value))
     let validateNone (rules:JPadEvaluateExt) context = validate rules context Option.None
 
+        
+        
     [<Fact>]
     member test.``Use partitions with simple values``() =
         let rules = parser <| """
@@ -316,8 +351,14 @@ type ``Code Generation tests`` () =
 
         (fun () -> (parser <| invalidJPad).Invoke (createContext [("fruit", "apple");("device.Version", "1.0")]) |> ignore) |> should throw typeof<ArgumentException>
         
-    [<Fact>]
-    member test.``In array rule``() =
+    [<Theory>]
+    [<InlineData(12.0, "false")>]
+    [<InlineData(10.0, "true")>]
+    [<InlineData(22.0, "false")>]
+    [<InlineData(20.0, "true")>]
+    [<InlineData(32.0, "false")>]
+    [<InlineData(30.0, "true")>]
+    member test.``In array rule``(age: double, expected: string) =
         let rules = parser <| """
         {
             "partitions": [],
@@ -335,10 +376,46 @@ type ``Code Generation tests`` () =
             ]
         }"""
         
-        validateValue rules (createContextForJsonValue [("Age", JsonValue.Float(12.0));]) "false"
-        validateValue rules (createContextForJsonValue [("Age", JsonValue.Float(10.0));]) "true"
-        validateValue rules (createContextForJsonValue [("Age", JsonValue.Float(22.0));]) "false"
-        validateValue rules (createContextForJsonValue [("Age", JsonValue.Float(20.0));]) "true"
-        validateValue rules (createContextForJsonValue [("Age", JsonValue.Float(32.0));]) "false"
-        validateValue rules (createContextForJsonValue [("Age", JsonValue.Float(30.0));]) "true"
+        validateValue rules (createContextForJsonValue [("Age", JsonValue.Float(age));]) expected
+
+    [<Theory>]
+    [<InlineData(25, 70, "true")>]
+    [<InlineData(25, 80, "false")>]
+    [<InlineData(22, 70, "true")>]
+    [<InlineData(22, 80, "true")>]
+    member test.``Rule with 'or' conjunction``(age: decimal, weight: decimal, expected: string) =
+        let rules = parser <| """
+        {
+            "partitions": [],
+            "defaultValue": "false",
+            "rules": [
+                {
+                    "Matcher": {"$or": {"Age": {"$gt" : 20, "$lt" : 23 } , "Weight": {"$lt":80}} },
+                    "Type": "SingleVariant",
+                    "Value": "true"
+                }
+            ]
+        }"""
+        
+        validateValue rules (createContextForJsonValue [("Age", JsonValue.Number(age));("Weight", JsonValue.Number(weight))]) expected
+
+    
+    [<Theory>]
+    [<ClassData(typeof<ContainsOperatorData>)>]
+    member test.``Rule with 'contains' operator``(expression: string, contextMap: IEnumerable<KeyValuePair<string,JsonValue>>, expected: bool) =
+        let rules = parser <| (expression |> sprintf """
+        {
+            "partitions": [],
+            "defaultValue": "false",
+            "rules": [
+                {
+                    "Matcher": %s,
+                    "Type": "SingleVariant",
+                    "Value": "true"
+                }
+            ]
+        }""")
+        
+        let contextMapAdapted = contextMap |> Seq.map(fun kv -> (kv.Key, kv.Value))
+        validateValue rules (createContextForJsonValue contextMapAdapted) (expected.ToString().ToLower())
 
