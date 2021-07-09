@@ -115,16 +115,15 @@ namespace Tweek.JPad.RuntimeSupport
                 return actualRight.AsString().ToLower().Contains(left.AsString().ToLower());
             }
 
-            var comparer = new JsonValueEqualityComparer((left, right, comparisonOp) =>
-                Compare(left, right, comparisonOp, comparisonType));
+            var equalityComparer = new JsonValueEqualityComparer(this, comparisonType);
             if (left.IsArray && actualRight.IsArray)
             {
-                return left.AsArray().All(item => actualRight.AsArray().Contains(item, comparer));
+                return left.AsArray().All(item => actualRight.AsArray().Contains(item, equalityComparer));
             }
 
             if (actualRight.IsArray)
             {
-                return actualRight.AsArray().Contains(left, comparer);
+                return actualRight.AsArray().Contains(left, equalityComparer);
             }
 
             if (!left.IsArray) return false;
@@ -136,16 +135,19 @@ namespace Tweek.JPad.RuntimeSupport
 
     internal class JsonValueEqualityComparer: IEqualityComparer<JsonValue>
     {
-        private readonly Func<JsonValue, FSharpOption<JsonValue>, EvaluatorDelegateClosure.ComparisonOp, bool> _comparerFunc;
+        private readonly EvaluatorDelegateClosure _delegateClosure;
+        private readonly string _comparisonType;
         
-        public JsonValueEqualityComparer(Func<JsonValue, FSharpOption<JsonValue>, EvaluatorDelegateClosure.ComparisonOp, bool> comparerFunc)
+        public JsonValueEqualityComparer(EvaluatorDelegateClosure delegateClosure, string comparisonType)
         {
-            _comparerFunc = comparerFunc;
+            _delegateClosure = delegateClosure;
+            _comparisonType = comparisonType;
         }
         
         public bool Equals(JsonValue x, JsonValue y)
         {
-            return _comparerFunc(x, FSharpOption<JsonValue>.Some(y), EvaluatorDelegateClosure.ComparisonOp.Equal);
+            return _delegateClosure.Compare(x, FSharpOption<JsonValue>.Some(y),
+                EvaluatorDelegateClosure.ComparisonOp.Equal, _comparisonType);
         }
 
         public int GetHashCode(JsonValue obj)
