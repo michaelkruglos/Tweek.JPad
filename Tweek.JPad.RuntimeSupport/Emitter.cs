@@ -35,6 +35,8 @@ namespace Tweek.JPad.RuntimeSupport
         private readonly MethodInfo _containsMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.Contains));
         private readonly MethodInfo _startsWith = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.StringStartsWith));
         private readonly MethodInfo _endsWith = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.StringEndsWith));
+        private readonly MethodInfo _timeSpanFromMilliseconds = typeof(TimeSpan).GetMethod(nameof(TimeSpan.FromMilliseconds));
+        private readonly MethodInfo _withinTime = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.WithinTime));
 
         private Emitter()
         {
@@ -219,6 +221,14 @@ namespace Tweek.JPad.RuntimeSupport
             _il.Emit(OpCodes.Ldstr, prefix);
             _il.Emit(OpCodes.Call, _endsWith);
         }
-        
+
+        public void EmitWithinTime(string contextProperty, TimeSpan timeSpan)
+        {
+            EmitFetchContextProperty(contextProperty);
+            EmitFetchContextProperty("system.time_utc");
+            _il.Emit(OpCodes.Ldc_R8, timeSpan.TotalMilliseconds);
+            _il.Emit(OpCodes.Call, _timeSpanFromMilliseconds);
+            _il.Emit(OpCodes.Call, _withinTime);
+        }
     }
 }

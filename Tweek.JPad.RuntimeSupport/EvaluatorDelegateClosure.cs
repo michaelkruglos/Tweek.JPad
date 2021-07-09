@@ -141,6 +141,45 @@ namespace Tweek.JPad.RuntimeSupport
         {
             return contextValue?.Value?.AsString().EndsWith(prefix,StringComparison.OrdinalIgnoreCase) ?? false;
         }
+
+        public static bool WithinTime(FSharpOption<JsonValue> contextValue, FSharpOption<JsonValue> now,
+            TimeSpan within)
+        {
+            DateTime? referenceTime, timeNow;
+            try
+            {
+                timeNow = DateTime.Parse(now?.Value?.AsString() ?? "");
+            }
+            catch (Exception e)
+            {
+                timeNow = null;
+            }
+            try
+            {
+                referenceTime = DateTime.Parse(contextValue?.Value?.AsString() ?? "");
+            }
+            catch (Exception e)
+            {
+                referenceTime = null;
+            }
+
+            if (timeNow != null && referenceTime != null)
+            {
+                return (referenceTime - timeNow).Value.Duration() < within;
+            }
+
+            if (referenceTime == null)
+            {
+                return false;
+            }
+            
+            if (timeNow == null)
+            {
+                throw new Exception("Missing system time details");
+            }
+
+            return false;
+        }
     }
 
     internal class JsonValueEqualityComparer: IEqualityComparer<JsonValue>

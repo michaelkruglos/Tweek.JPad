@@ -47,7 +47,9 @@ type ContainsOperatorData() as this  =
         this.Add(numberListExpression,   [KeyValuePair<string,JsonValue>("Codes", JsonValue.Null)],                   false)
         
 type ``Code Generation tests`` () =
-    let parser = CodeGeneration.GenerateDelegate (ParserSettings(defaultSha1Provider, dict([("version", new ComparerDelegate(fun x -> Version.Parse(x) :> IComparable))]))) "test_key"
+    let versionComparer = ComparerDelegate(fun x -> Version.Parse(x) :> IComparable)
+    let dateComparer = ComparerDelegate(fun x -> DateTime.Parse(x) :> IComparable)
+    let parser = CodeGeneration.GenerateDelegate (ParserSettings(defaultSha1Provider, dict([("version", versionComparer);("date", dateComparer)]))) "test_key"
     let createContext seq = ContextDelegate(fun name -> seq |> Seq.tryFind (fun (k,v)->k = name) |> Option.map (fun (k,v)->JsonValue.String v))
     let createContextForJsonValue seq = ContextDelegate(fun name -> seq |> Seq.tryFind (fun (k,v)->k = name) |> Option.map snd)
 
@@ -445,4 +447,101 @@ type ``Code Generation tests`` () =
         validateValue rules (createContext [("Country", value);]) (expected.ToString().ToLower())
 
 
-    //
+    [<Theory>]
+    [<InlineData("""{"Birthday": {"$withinTime": "10d"}}""", -20.0, false)>]
+    [<InlineData("""{"Birthday": {"$withinTime": "10d"}}""", -5.0, true)>]
+    member test.``DateCompare using withinTime with days``(expression, value, expected) =
+        let rules = parser <| (expression |> sprintf """
+        {
+            "partitions": [],
+            "defaultValue": "false",
+            "rules": [
+                {
+                    "Matcher": %s,
+                    "Type": "SingleVariant",
+                    "Value": "true"
+                }
+            ]
+        }""")
+        
+        let context = (createContextForJsonValue [("Birthday", JsonValue.String(DateTime.UtcNow.AddDays(value).ToString()));("system.time_utc", JsonValue.String(DateTime.UtcNow.ToString()));])
+        validateValue rules context (expected.ToString().ToLower())
+        
+    [<Fact>]
+    member test.``DateCompare using withinTime with days and missing values in context``() =
+        let rules = parser <| """
+        {
+            "partitions": [],
+            "defaultValue": "false",
+            "rules": [
+                {
+                    "Matcher": {"Birthday": {"$withinTime": "10d"}},
+                    "Type": "SingleVariant",
+                    "Value": "true"
+                }
+            ]
+        }"""
+        
+        let context1 = (createContextForJsonValue [])
+        let context2 = (createContextForJsonValue [("Birthday", JsonValue.Null);])
+        validateValue rules context1 "false"
+        validateValue rules context2 "false"
+
+    [<Theory>]
+    [<InlineData("""{"Birthday": {"$withinTime": "10h"}}""", -20.0, false)>]
+    [<InlineData("""{"Birthday": {"$withinTime": "10h"}}""", -5.0, true)>]
+    member test.``DateCompare using withinTime with hours``(expression, value, expected) =
+        let rules = parser <| (expression |> sprintf """
+        {
+            "partitions": [],
+            "defaultValue": "false",
+            "rules": [
+                {
+                    "Matcher": %s,
+                    "Type": "SingleVariant",
+                    "Value": "true"
+                }
+            ]
+        }""")
+        
+        let context = (createContextForJsonValue [("Birthday", JsonValue.String(DateTime.UtcNow.AddHours(value).ToString()));("system.time_utc", JsonValue.String(DateTime.UtcNow.ToString()));])
+        validateValue rules context (expected.ToString().ToLower())
+
+    [<Theory>]
+    [<InlineData("""{"Birthday": {"$withinTime": "10m"}}""", -20.0, false)>]
+    [<InlineData("""{"Birthday": {"$withinTime": "10m"}}""", -5.0, true)>]
+    member test.``DateCompare using withinTime with minutes``(expression, value, expected) =
+        let rules = parser <| (expression |> sprintf """
+        {
+            "partitions": [],
+            "defaultValue": "false",
+            "rules": [
+                {
+                    "Matcher": %s,
+                    "Type": "SingleVariant",
+                    "Value": "true"
+                }
+            ]
+        }""")
+
+        let context = (createContextForJsonValue [("Birthday", JsonValue.String(DateTime.UtcNow.AddMinutes(value).ToString()));("system.time_utc", JsonValue.String(DateTime.UtcNow.ToString()));])
+        validateValue rules context (expected.ToString().ToLower())
+
+    [<Fact>]
+    member test.``DateCompare with string comparer``() =
+        let rules = parser <|  """
+        {
+            "partitions": [],
+            "defaultValue": "false",
+            "rules": [
+                {
+                    "Matcher": {"Birthday": {"$ge": "2014-12-20T13:14:19.790Z", "$compare": "date"}},
+                    "Type": "SingleVariant",
+                    "Value": "true"
+                }
+            ]
+        }"""
+
+        validateValue rules (createContextForJsonValue [("Birthday", JsonValue.String("2015-12-20T13:14:19.790Z"));] ) "true"
+        validateValue rules (createContextForJsonValue [("Birthday", JsonValue.String("2013-12-20T13:14:19.790Z"));] ) "false"
+        validateValue rules (createContextForJsonValue [("Birthday", JsonValue.Null);]) "false"

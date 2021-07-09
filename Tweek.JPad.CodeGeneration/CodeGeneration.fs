@@ -55,7 +55,12 @@ module CodeGeneration =
             |In (values,comparisonType) ->
                 emitter.EmitInArray(prefix, values, (comparisonTypeToString comparisonType))
                 emitter.EmitJumpIfFalse(shortcut)
-            |TimeOp (op, value) -> raise(NotImplementedException())
+            |TimeOp (op, value) ->
+                match op with
+                |WithinTime ->
+                    emitter.EmitWithinTime(prefix, value)
+                    emitter.EmitJumpIfFalse(shortcut)
+                |_ -> raise(NotImplementedException())
             |StringOp (op, value) ->
                 match op with
                 |StartsWith -> emitter.EmitStartsWith(prefix, value)
