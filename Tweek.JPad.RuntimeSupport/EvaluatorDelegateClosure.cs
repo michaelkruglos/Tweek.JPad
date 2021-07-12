@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Metadata;
+using System.Text;
 using FSharpUtils.Newtonsoft;
 using Microsoft.FSharp.Core;
 
@@ -11,20 +12,20 @@ namespace Tweek.JPad.RuntimeSupport
     public abstract class EvaluatorDelegateClosure
     {
         public readonly JsonValue[] cachedValues;
-        public readonly IDictionary<string, int>[] jumpTable;
+        public readonly KeyValuePair<JsonValue, int>[][] weightedValuesCache;
         public readonly Sha1Provider sha1Provider;
         private IDictionary<string, ComparerDelegate> comparers;
 
         public const string ValuesFieldName = nameof(cachedValues);
-        public const string JumpTableFieldName = nameof(jumpTable);
+        public const string WeightedValuesCacheFieldName = nameof(weightedValuesCache);
         public const string Sha1ProviderFieldName = nameof(sha1Provider);
         public const string ComparersFieldName = nameof(comparers);
 
-        public EvaluatorDelegateClosure(JsonValue[] cachedValues, IDictionary<string, int>[] jumpTable,
+        public EvaluatorDelegateClosure(JsonValue[] cachedValues, KeyValuePair<JsonValue, int>[][] weightedValuesCache,
             Sha1Provider sha1Provider, IDictionary<string, ComparerDelegate> comparers)
         {
             this.cachedValues = cachedValues;
-            this.jumpTable = jumpTable;
+            this.weightedValuesCache = weightedValuesCache;
             this.sha1Provider = sha1Provider;
             this.comparers = comparers;
         }
@@ -150,7 +151,7 @@ namespace Tweek.JPad.RuntimeSupport
             {
                 timeNow = DateTime.Parse(now?.Value?.AsString() ?? "");
             }
-            catch (Exception e)
+            catch (Exception _)
             {
                 timeNow = null;
             }
@@ -158,7 +159,7 @@ namespace Tweek.JPad.RuntimeSupport
             {
                 referenceTime = DateTime.Parse(contextValue?.Value?.AsString() ?? "");
             }
-            catch (Exception e)
+            catch (Exception _)
             {
                 referenceTime = null;
             }
@@ -179,6 +180,33 @@ namespace Tweek.JPad.RuntimeSupport
             }
 
             return false;
+        }
+
+        public FSharpOption<JsonValue> WeightedDistributionValue(KeyValuePair<JsonValue, int>[] weights, ContextDelegate context, string ownerType, string salt)
+        {
+            if (ownerType == null)
+            {
+                return FSharpOption<JsonValue>.None;
+            }
+            var owner = context(ownerType + ".@@id");
+            if (FSharpOption<JsonValue>.get_IsNone(owner))
+            {
+                return FSharpOption<JsonValue>.None;
+            }
+            var stringToHash = owner.Value.AsString() + "." + salt;
+            var hash = BitConverter.ToUInt64(sha1Provider(Encoding.UTF8.GetBytes(stringToHash)));
+            var total = (ulong) weights.Select(pair => pair.Value).Sum();
+            var selected = (int) (hash % total);
+            var totalWeight = 0;
+            JsonValue item = null;
+            foreach (var (value, weight) in weights)
+            {
+                totalWeight += weight;
+                item = value;
+                if (selected < totalWeight) break;
+            }
+
+            return FSharpOption<JsonValue>.Some(item);
         }
     }
 

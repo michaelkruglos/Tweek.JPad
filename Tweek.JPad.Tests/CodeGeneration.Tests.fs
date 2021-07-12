@@ -2,6 +2,7 @@
 
 open System.Collections
 open System.Collections.Generic
+open System.Text
 open FsUnit
 open Tweek.JPad.CodeGeneration
 open Xunit
@@ -47,9 +48,14 @@ type ContainsOperatorData() as this  =
         this.Add(numberListExpression,   [KeyValuePair<string,JsonValue>("Codes", JsonValue.Null)],                   false)
         
 type ``Code Generation tests`` () =
+    let mutable lastSalt = ""
+    let hashProvider = Sha1Provider(fun input ->
+        lastSalt <- Encoding.UTF8.GetString input |> fun x -> x.Split '.' |> Array.last
+        defaultSha1Provider.Invoke input)
+    
     let versionComparer = ComparerDelegate(fun x -> Version.Parse(x) :> IComparable)
     let dateComparer = ComparerDelegate(fun x -> DateTime.Parse(x) :> IComparable)
-    let parser = CodeGeneration.GenerateDelegate (ParserSettings(defaultSha1Provider, dict([("version", versionComparer);("date", dateComparer)]))) "test_key"
+    let parser = CodeGeneration.GenerateDelegate (ParserSettings(hashProvider, dict([("version", versionComparer);("date", dateComparer)]))) "test_key"
     let createContext seq = ContextDelegate(fun name -> seq |> Seq.tryFind (fun (k,v)->k = name) |> Option.map (fun (k,v)->JsonValue.String v))
     let createContextForJsonValue seq = ContextDelegate(fun name -> seq |> Seq.tryFind (fun (k,v)->k = name) |> Option.map snd)
 
@@ -545,3 +551,128 @@ type ``Code Generation tests`` () =
         validateValue rules (createContextForJsonValue [("Birthday", JsonValue.String("2015-12-20T13:14:19.790Z"));] ) "true"
         validateValue rules (createContextForJsonValue [("Birthday", JsonValue.String("2013-12-20T13:14:19.790Z"));] ) "false"
         validateValue rules (createContextForJsonValue [("Birthday", JsonValue.Null);]) "false"
+        
+    [<Fact>]
+    member test.``Use valueType with number typed weighted value distribution``() =
+        let rules = parser <| """
+        {
+            "partitions": [],
+            "valueType": "number",
+            "rules": [
+                {
+                    "Salt": "678107bb-51de-46ee-b127-2672c2303a47",
+                    "Matcher": {},
+                    "Type": "MultiVariant",
+                    "OwnerType": "device",
+                    "ValueDistribution": {
+                        "type": "weighted",
+                        "args": {
+                            "5": 0,
+                            "6": 100
+                        }
+                    }
+                }
+            ]
+        }"""
+        
+        let context = createContext [("device.@@id","123");]
+        validate rules context (Some (JsonValue.Number 6M))
+        
+        
+    [<Fact>]
+    member test.``Use valueType with boolean typed weighted value distribution``() =
+        let rules = parser <| """
+        {
+            "partitions": [],
+            "valueType": "boolean",
+            "rules": [
+                {
+                    "Id": "123",
+                    "Matcher": {},
+                    "Type": "MultiVariant",
+                    "OwnerType": "device",
+                    "ValueDistribution": {
+                        "type": "weighted",
+                        "args": {
+                            "false": 0,
+                            "true": 100
+                        }
+                    }
+                }
+            ]
+        }"""
+        
+        let context = createContext [("device.@@id","123");]
+        validate rules context (Some (JsonValue.Boolean true))
+        
+    
+    [<Fact>]
+    member test.``Use valueType with string typed weighted value distribution``() =
+        let rules = parser <| """
+        {
+            "partitions": [],
+            "valueType": "string",
+            "rules": [
+                {
+                    "Id": "123",
+                    "Matcher": {},
+                    "Type": "MultiVariant",
+                    "OwnerType": "device",
+                    "ValueDistribution": {
+                        "type": "weighted",
+                        "args": {
+                            "false" : 0,
+                            "true" : 100
+                        }
+                    }
+                }
+            ]
+        }"""
+        let context = createContext [("device.@@id","123");]
+        validate rules context (Some(JsonValue.String "true"))
+     
+
+    [<Fact>]
+    member test.``value distribution should prefer Salt over Id``() =
+        let rules = parser <| """
+        {
+            "partitions": [],
+            "valueType": "string",
+            "rules": [
+                {
+                    "Salt": "32123",
+                    "Id": "123",
+                    "Matcher": {},
+                    "Type": "MultiVariant",
+                    "OwnerType": "device",
+                    "ValueDistribution": {
+                        "type": "weighted",
+                        "args": {
+                            "false" : 50,
+                            "true" : 50
+                        }
+                    }
+                }
+            ]
+        }"""
+        let context = createContext [("device.@@id","123");]
+        rules.Invoke context |> ignore
+        lastSalt |> should equal "32123"
+
+    [<Fact>]
+    member test.``value distribution with Salt should be the same as Id``() =
+        let getRules prop salt = sprintf """{"partitions":[],"valueType":"string","rules":[{"%s":"%s","Matcher":{},"Type":"MultiVariant","OwnerType":"device","ValueDistribution":{"type":"weighted","args":{"false":50,"true":50}}}]}""" prop salt
+        let salt = Guid.NewGuid().ToString()
+
+        let saltRules = getRules "Salt" salt |> parser
+        let idRules = getRules "Id" salt |> parser
+
+        let context = createContext [("device.@@id","123");]
+        
+        let saltResult = saltRules.Invoke context
+        lastSalt |> should equal salt
+        lastSalt <- ""
+        let idResult = idRules.Invoke context
+        lastSalt |> should equal salt
+
+        saltResult |> should equal idResult

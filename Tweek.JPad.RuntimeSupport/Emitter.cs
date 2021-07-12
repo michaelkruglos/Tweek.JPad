@@ -17,26 +17,29 @@ namespace Tweek.JPad.RuntimeSupport
         private TypeBuilder _closureType;
         private MethodBuilder _invoke;
         private readonly IDictionary<JsonValue, int> _valuesCache = new Dictionary<JsonValue, int>();
+        private readonly IDictionary<KeyValuePair<JsonValue, int>[], int> _weightedValuesCache =
+            new Dictionary<KeyValuePair<JsonValue, int>[],int>();
 
         private readonly FieldInfo _cachedValuesField =
             typeof(EvaluatorDelegateClosure).GetField(EvaluatorDelegateClosure.ValuesFieldName);
-        private readonly FieldInfo _jumpTableField =
-            typeof(EvaluatorDelegateClosure).GetField(EvaluatorDelegateClosure.JumpTableFieldName);
-        private readonly MethodInfo _jsonValueNoneMethod =
-            typeof(FSharpOption<JsonValue>).GetProperty(nameof(FSharpOption<JsonValue>.None))?.GetMethod;
-        private readonly MethodInfo _jsonValueSomeMethod =
-            typeof(FSharpOption<JsonValue>).GetMethod(nameof(FSharpOption<JsonValue>.Some));
-        private readonly MethodInfo _compareMethod =
-            typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.Compare));
-        private readonly  MethodInfo _inArrayMethod =
-            typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.InArray));
-
+        private readonly FieldInfo _weightedValuesCacheField = 
+            typeof(EvaluatorDelegateClosure).GetField(EvaluatorDelegateClosure.WeightedValuesCacheFieldName);
+        private readonly FieldInfo _sha1ProviderField =
+            typeof(EvaluatorDelegateClosure).GetField(EvaluatorDelegateClosure.Sha1ProviderFieldName);
+            
+        private readonly MethodInfo _jsonValueNoneMethod = typeof(FSharpOption<JsonValue>).GetProperty(nameof(FSharpOption<JsonValue>.None))?.GetMethod;
+        private readonly MethodInfo _jsonValueSomeMethod = typeof(FSharpOption<JsonValue>).GetMethod(nameof(FSharpOption<JsonValue>.Some));
+        private readonly MethodInfo _compareMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.Compare));
+        private readonly  MethodInfo _inArrayMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.InArray));
         private readonly MethodInfo _contextDelegateInvokeMethod = typeof(ContextDelegate).GetMethod(nameof(ContextDelegate.Invoke));
         private readonly MethodInfo _containsMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.Contains));
-        private readonly MethodInfo _startsWith = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.StringStartsWith));
-        private readonly MethodInfo _endsWith = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.StringEndsWith));
-        private readonly MethodInfo _timeSpanFromMilliseconds = typeof(TimeSpan).GetMethod(nameof(TimeSpan.FromMilliseconds));
-        private readonly MethodInfo _withinTime = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.WithinTime));
+        private readonly MethodInfo _startsWithMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.StringStartsWith));
+        private readonly MethodInfo _endsWithMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.StringEndsWith));
+        private readonly MethodInfo _timeSpanFromMillisecondsMethod = typeof(TimeSpan).GetMethod(nameof(TimeSpan.FromMilliseconds));
+        private readonly MethodInfo _withinTimeMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.WithinTime));
+        private readonly MethodInfo _weightedDistributionValueMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.WeightedDistributionValue));
+        private readonly MethodInfo _sha1ProviderMethod = typeof(EvaluatorDelegateClosure).GetMethod(EvaluatorDelegateClosure.Sha1ProviderFieldName);
+            
 
         private Emitter()
         {
@@ -61,9 +64,9 @@ namespace Tweek.JPad.RuntimeSupport
         public JPadEvaluateExt Finalize( Sha1Provider sha1Provider, IDictionary<string, ComparerDelegate > comparers)
         {
             var cachedValues = this._valuesCache.Keys.OrderBy(k => _valuesCache[k]).ToArray();
-            IDictionary<string, int>[] jumpTable = null;
+            var weightedValuesCache = this._weightedValuesCache.Keys.OrderBy(k => _weightedValuesCache[k]).ToArray();
             var paramTypes = new[]
-                {typeof(JsonValue[]), typeof(IDictionary<string, int>[]), typeof(Sha1Provider), typeof(IDictionary<string, ComparerDelegate>)};
+                {typeof(JsonValue[]), typeof(KeyValuePair<JsonValue, int>[][]), typeof(Sha1Provider), typeof(IDictionary<string, ComparerDelegate>)};
             var defaultConstructor =
                 _closureType.DefineConstructor(MethodAttributes.Public | MethodAttributes.HideBySig,
                     CallingConventions.Standard, paramTypes);
@@ -81,9 +84,9 @@ namespace Tweek.JPad.RuntimeSupport
             var theType = _closureType.CreateType();
             
             var constructor = theType.GetConstructor(paramTypes);
-            var closure = (EvaluatorDelegateClosure) constructor.Invoke(new object[]{cachedValues, jumpTable, sha1Provider, comparers});
+            var closure = (EvaluatorDelegateClosure) constructor.Invoke(new object[]{cachedValues, weightedValuesCache, sha1Provider, comparers});
             Debug.Assert(closure != null, nameof(closure) + " != null");
-            Save(theType, "test-analysis.dll");
+            Save(theType, "test-analysis.dll");//TODO: remove it
             return closure.Invoke;
         }
 
@@ -113,8 +116,7 @@ namespace Tweek.JPad.RuntimeSupport
 
         public void EmitJsonValue(JsonValue value, bool useDup)
         {
-            int index;
-            if (!_valuesCache.TryGetValue(value, out index))
+            if (!_valuesCache.TryGetValue(value, out var index))
             {
                 index = _valuesCache.Count;
                 _valuesCache[value] = index;
@@ -129,6 +131,33 @@ namespace Tweek.JPad.RuntimeSupport
             _il.Emit(OpCodes.Ldfld, _cachedValuesField);
             _il.Emit(OpCodes.Ldc_I4, index);
             _il.Emit(OpCodes.Ldelem, typeof(JsonValue));
+        }
+
+        public void EmitReturnWeightedValue(KeyValuePair<JsonValue,int>[] weights, string ownerType, string salt)
+        {
+            if (!_weightedValuesCache.TryGetValue(weights, out var index))
+            {
+                index = _weightedValuesCache.Count;
+                _weightedValuesCache[weights] = index;
+            }
+            
+            _il.Emit(OpCodes.Ldarg_0);
+            _il.Emit(OpCodes.Dup);
+            _il.Emit(OpCodes.Ldfld, _weightedValuesCacheField);
+            _il.Emit(OpCodes.Ldc_I4, index);
+            _il.Emit(OpCodes.Ldelem, typeof(KeyValuePair<JsonValue,int>[]));
+            _il.Emit(OpCodes.Ldarg_1);
+            if (ownerType == null)
+            {
+                _il.Emit(OpCodes.Ldnull);
+            }
+            else
+            {
+                _il.Emit(OpCodes.Ldstr, ownerType);
+            }
+            _il.Emit(OpCodes.Ldstr, salt);
+            _il.Emit(OpCodes.Call, _weightedDistributionValueMethod);
+            _il.Emit(OpCodes.Ret);
         }
 
         public Label ReserveLabel()
@@ -212,14 +241,14 @@ namespace Tweek.JPad.RuntimeSupport
         {
             EmitFetchContextProperty(contextProperty);
             _il.Emit(OpCodes.Ldstr, prefix);
-            _il.Emit(OpCodes.Call, _startsWith);
+            _il.Emit(OpCodes.Call, _startsWithMethod);
         }
         
         public void EmitEndsWith(string contextProperty, string prefix)
         {
             EmitFetchContextProperty(contextProperty);
             _il.Emit(OpCodes.Ldstr, prefix);
-            _il.Emit(OpCodes.Call, _endsWith);
+            _il.Emit(OpCodes.Call, _endsWithMethod);
         }
 
         public void EmitWithinTime(string contextProperty, TimeSpan timeSpan)
@@ -227,8 +256,8 @@ namespace Tweek.JPad.RuntimeSupport
             EmitFetchContextProperty(contextProperty);
             EmitFetchContextProperty("system.time_utc");
             _il.Emit(OpCodes.Ldc_R8, timeSpan.TotalMilliseconds);
-            _il.Emit(OpCodes.Call, _timeSpanFromMilliseconds);
-            _il.Emit(OpCodes.Call, _withinTime);
+            _il.Emit(OpCodes.Call, _timeSpanFromMillisecondsMethod);
+            _il.Emit(OpCodes.Call, _withinTimeMethod);
         }
     }
 }

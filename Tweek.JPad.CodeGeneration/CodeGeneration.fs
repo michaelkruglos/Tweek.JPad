@@ -1,6 +1,7 @@
 namespace Tweek.JPad.CodeGeneration
 
 open System
+open System.Collections.Generic
 open System.Reflection.Emit
 open FSharpUtils.Newtonsoft
 open Tweek.JPad
@@ -78,7 +79,9 @@ module CodeGeneration =
         |MultiVariant valueDistribution ->
             match valueDistribution.DistributionType with
             |Uniform uniformValues -> raise(NotImplementedException())
-            |Weighted weightedValues -> raise(NotImplementedException())
+            |Weighted weightedValues ->
+                let transformedValues = weightedValues |> Array.map (fun pair -> KeyValuePair(fst pair, snd pair))
+                emitter.EmitReturnWeightedValue(transformedValues, (match valueDistribution.OwnerType with |Some v ->v | None -> null), valueDistribution.Salt);
             |Bernouli fp -> raise(NotImplementedException())
         
     let rec private compileRulesContainer (emitter: Emitter) container shortcut =
