@@ -17,6 +17,12 @@ jobs:
           dotnet restore
           dotnet test
         working-directory: Tweek.JPad.Tests
+      
+      - name: Benchmarks
+        run: |
+          dotnet restore
+          dotnet run -c Release
+        working-directory: Tweek.JPad.Benchmarks
 
       - name: Build package
         run: package_version=0.8.$GITHUB_RUN_NUMBER dotnet build -c Release
