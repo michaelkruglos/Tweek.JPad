@@ -77,11 +77,13 @@ module CodeGeneration =
         |SingleVariant jsonValue ->
             emitter.EmitReturnJsonValueSome jsonValue
         |MultiVariant valueDistribution ->
+            let ownerType = (match valueDistribution.OwnerType with |Some v ->v | None -> null)
             match valueDistribution.DistributionType with
-            |Uniform uniformValues -> raise(NotImplementedException())
+            |Uniform uniformValues ->
+                emitter.EmitReturnUniformValue(uniformValues, ownerType, valueDistribution.Salt)
             |Weighted weightedValues ->
                 let transformedValues = weightedValues |> Array.map (fun pair -> KeyValuePair(fst pair, snd pair))
-                emitter.EmitReturnWeightedValue(transformedValues, (match valueDistribution.OwnerType with |Some v ->v | None -> null), valueDistribution.Salt);
+                emitter.EmitReturnWeightedValue(transformedValues, ownerType, valueDistribution.Salt)
             |Bernouli fp -> raise(NotImplementedException())
         
     let rec private compileRulesContainer (emitter: Emitter) container shortcut =

@@ -13,19 +13,22 @@ namespace Tweek.JPad.RuntimeSupport
     {
         public readonly JsonValue[] cachedValues;
         public readonly KeyValuePair<JsonValue, int>[][] weightedValuesCache;
+        public readonly JsonValue[][] uniformValuesCache;
         public readonly Sha1Provider sha1Provider;
         private IDictionary<string, ComparerDelegate> comparers;
 
         public const string ValuesFieldName = nameof(cachedValues);
         public const string WeightedValuesCacheFieldName = nameof(weightedValuesCache);
+        public const string UniformValuesCacheFieldName = nameof(uniformValuesCache);
         public const string Sha1ProviderFieldName = nameof(sha1Provider);
         public const string ComparersFieldName = nameof(comparers);
 
         public EvaluatorDelegateClosure(JsonValue[] cachedValues, KeyValuePair<JsonValue, int>[][] weightedValuesCache,
-            Sha1Provider sha1Provider, IDictionary<string, ComparerDelegate> comparers)
+            JsonValue[][] uniformValuesCache, Sha1Provider sha1Provider, IDictionary<string, ComparerDelegate> comparers)
         {
             this.cachedValues = cachedValues;
             this.weightedValuesCache = weightedValuesCache;
+            this.uniformValuesCache = uniformValuesCache;
             this.sha1Provider = sha1Provider;
             this.comparers = comparers;
         }
@@ -182,20 +185,20 @@ namespace Tweek.JPad.RuntimeSupport
             return false;
         }
 
+        private static ulong? CalculateHash(Sha1Provider sha1Provider, ContextDelegate context, string ownerType, string salt)
+        {
+            if (ownerType == null) return null;
+            var owner = context(ownerType + ".@@id");
+            if (FSharpOption<JsonValue>.get_IsNone(owner)) return null;
+            var stringToHash = owner.Value.AsString() + "." + salt;
+            return BitConverter.ToUInt64(sha1Provider(Encoding.UTF8.GetBytes(stringToHash)));
+        }
+        
         public FSharpOption<JsonValue> WeightedDistributionValue(KeyValuePair<JsonValue, int>[] weights, ContextDelegate context, string ownerType, string salt)
         {
-            if (ownerType == null)
-            {
-                return FSharpOption<JsonValue>.None;
-            }
-            var owner = context(ownerType + ".@@id");
-            if (FSharpOption<JsonValue>.get_IsNone(owner))
-            {
-                return FSharpOption<JsonValue>.None;
-            }
-            var stringToHash = owner.Value.AsString() + "." + salt;
-            var hash = BitConverter.ToUInt64(sha1Provider(Encoding.UTF8.GetBytes(stringToHash)));
-            var total = (ulong) weights.Select(pair => pair.Value).Sum();
+            var hash = CalculateHash(sha1Provider, context, ownerType, salt);
+            if(hash == null) return FSharpOption<JsonValue>.None;
+            var total = (ulong) weights.Sum(pair => pair.Value);
             var selected = (int) (hash % total);
             var totalWeight = 0;
             JsonValue item = null;
@@ -207,6 +210,14 @@ namespace Tweek.JPad.RuntimeSupport
             }
 
             return FSharpOption<JsonValue>.Some(item);
+        }
+
+        public FSharpOption<JsonValue> UniformDistributionValue(JsonValue[] choices, ContextDelegate context, string ownerType, string salt)
+        {
+            var hash = CalculateHash(sha1Provider, context, ownerType, salt);
+            if(hash == null) return FSharpOption<JsonValue>.None;
+            var selected = (int)(hash.Value % (ulong)choices.Length);
+            return FSharpOption<JsonValue>.Some(choices[selected]);
         }
     }
 

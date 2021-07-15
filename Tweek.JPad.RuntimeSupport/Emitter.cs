@@ -19,18 +19,21 @@ namespace Tweek.JPad.RuntimeSupport
         private readonly IDictionary<JsonValue, int> _valuesCache = new Dictionary<JsonValue, int>();
         private readonly IDictionary<KeyValuePair<JsonValue, int>[], int> _weightedValuesCache =
             new Dictionary<KeyValuePair<JsonValue, int>[],int>();
+        private readonly IDictionary<JsonValue[], int> _uniformValuesCache = new Dictionary<JsonValue[], int>();
 
         private readonly FieldInfo _cachedValuesField =
             typeof(EvaluatorDelegateClosure).GetField(EvaluatorDelegateClosure.ValuesFieldName);
         private readonly FieldInfo _weightedValuesCacheField = 
             typeof(EvaluatorDelegateClosure).GetField(EvaluatorDelegateClosure.WeightedValuesCacheFieldName);
+        private readonly FieldInfo _uniformValuesCacheField = 
+            typeof(EvaluatorDelegateClosure).GetField(EvaluatorDelegateClosure.UniformValuesCacheFieldName);
         private readonly FieldInfo _sha1ProviderField =
             typeof(EvaluatorDelegateClosure).GetField(EvaluatorDelegateClosure.Sha1ProviderFieldName);
             
         private readonly MethodInfo _jsonValueNoneMethod = typeof(FSharpOption<JsonValue>).GetProperty(nameof(FSharpOption<JsonValue>.None))?.GetMethod;
         private readonly MethodInfo _jsonValueSomeMethod = typeof(FSharpOption<JsonValue>).GetMethod(nameof(FSharpOption<JsonValue>.Some));
         private readonly MethodInfo _compareMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.Compare));
-        private readonly  MethodInfo _inArrayMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.InArray));
+        private readonly MethodInfo _inArrayMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.InArray));
         private readonly MethodInfo _contextDelegateInvokeMethod = typeof(ContextDelegate).GetMethod(nameof(ContextDelegate.Invoke));
         private readonly MethodInfo _containsMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.Contains));
         private readonly MethodInfo _startsWithMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.StringStartsWith));
@@ -38,8 +41,9 @@ namespace Tweek.JPad.RuntimeSupport
         private readonly MethodInfo _timeSpanFromMillisecondsMethod = typeof(TimeSpan).GetMethod(nameof(TimeSpan.FromMilliseconds));
         private readonly MethodInfo _withinTimeMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.WithinTime));
         private readonly MethodInfo _weightedDistributionValueMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.WeightedDistributionValue));
+        private readonly MethodInfo _uniformDistributionValueMethod = typeof(EvaluatorDelegateClosure).GetMethod(nameof(EvaluatorDelegateClosure.UniformDistributionValue));
         private readonly MethodInfo _sha1ProviderMethod = typeof(EvaluatorDelegateClosure).GetMethod(EvaluatorDelegateClosure.Sha1ProviderFieldName);
-            
+
 
         private Emitter()
         {
@@ -65,8 +69,9 @@ namespace Tweek.JPad.RuntimeSupport
         {
             var cachedValues = this._valuesCache.Keys.OrderBy(k => _valuesCache[k]).ToArray();
             var weightedValuesCache = this._weightedValuesCache.Keys.OrderBy(k => _weightedValuesCache[k]).ToArray();
+            var uniformValuesCache = _uniformValuesCache.Keys.OrderBy(k => _uniformValuesCache[k]).ToArray();
             var paramTypes = new[]
-                {typeof(JsonValue[]), typeof(KeyValuePair<JsonValue, int>[][]), typeof(Sha1Provider), typeof(IDictionary<string, ComparerDelegate>)};
+                {typeof(JsonValue[]), typeof(KeyValuePair<JsonValue, int>[][]), typeof(JsonValue[][]), typeof(Sha1Provider), typeof(IDictionary<string, ComparerDelegate>)};
             var defaultConstructor =
                 _closureType.DefineConstructor(MethodAttributes.Public | MethodAttributes.HideBySig,
                     CallingConventions.Standard, paramTypes);
@@ -76,6 +81,7 @@ namespace Tweek.JPad.RuntimeSupport
             dcIL.Emit(OpCodes.Ldarg_2);
             dcIL.Emit(OpCodes.Ldarg_3);
             dcIL.Emit(OpCodes.Ldarg_S, 4);
+            dcIL.Emit(OpCodes.Ldarg_S, 5);
             dcIL.Emit(OpCodes.Call,
                 typeof(EvaluatorDelegateClosure).GetConstructor(paramTypes) ??
                 throw new Exception("Cannot find constructor"));
@@ -84,7 +90,7 @@ namespace Tweek.JPad.RuntimeSupport
             var theType = _closureType.CreateType();
             
             var constructor = theType.GetConstructor(paramTypes);
-            var closure = (EvaluatorDelegateClosure) constructor.Invoke(new object[]{cachedValues, weightedValuesCache, sha1Provider, comparers});
+            var closure = (EvaluatorDelegateClosure) constructor.Invoke(new object[]{cachedValues, weightedValuesCache, uniformValuesCache, sha1Provider, comparers});
             Debug.Assert(closure != null, nameof(closure) + " != null");
             Save(theType, "test-analysis.dll");//TODO: remove it
             return closure.Invoke;
@@ -157,6 +163,34 @@ namespace Tweek.JPad.RuntimeSupport
             }
             _il.Emit(OpCodes.Ldstr, salt);
             _il.Emit(OpCodes.Call, _weightedDistributionValueMethod);
+            _il.Emit(OpCodes.Ret);
+        }
+
+
+        public void EmitReturnUniformValue(JsonValue[] choices, string ownerType, string salt)
+        {
+            if (!_uniformValuesCache.TryGetValue(choices, out var index))
+            {
+                index = _uniformValuesCache.Count;
+                _uniformValuesCache[choices] = index;
+            }
+            
+            _il.Emit(OpCodes.Ldarg_0);
+            _il.Emit(OpCodes.Dup);
+            _il.Emit(OpCodes.Ldfld, _uniformValuesCacheField);
+            _il.Emit(OpCodes.Ldc_I4, index);
+            _il.Emit(OpCodes.Ldelem, typeof(JsonValue[]));
+            _il.Emit(OpCodes.Ldarg_1);
+            if (ownerType == null)
+            {
+                _il.Emit(OpCodes.Ldnull);
+            }
+            else
+            {
+                _il.Emit(OpCodes.Ldstr, ownerType);
+            }
+            _il.Emit(OpCodes.Ldstr, salt);
+            _il.Emit(OpCodes.Call, _uniformDistributionValueMethod);
             _il.Emit(OpCodes.Ret);
         }
 

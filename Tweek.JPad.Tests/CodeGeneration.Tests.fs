@@ -676,3 +676,25 @@ type ``Code Generation tests`` () =
         lastSalt |> should equal salt
 
         saltResult |> should equal idResult
+        
+    [<Fact>]
+    member test.``Use uniform distrubtion with single value``() =
+        let calculator = """{"type": "uniform", "args": ["abc"] }"""
+        let rules = parser <| """
+        {
+            "partitions": [],
+            "valueType": "string",
+            "rules": [
+                {
+                    "Salt": "32123",
+                    "Id": "123",
+                    "Matcher": {},
+                    "Type": "MultiVariant",
+                    "OwnerType": "device",
+                    "ValueDistribution": {"type": "uniform", "args": ["abc"] }
+                }
+            ]
+        }"""
+        
+        let context = createContext [("device.@@id","123");]
+        validate rules context (Some(JsonValue.String "abc"))
